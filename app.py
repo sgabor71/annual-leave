@@ -180,6 +180,8 @@ def main():
         st.session_state.show_signup = False
     if 'show_delete_confirmation' not in st.session_state:
         st.session_state.show_delete_confirmation = False
+    if 'show_balance_update' not in st.session_state:
+        st.session_state.show_balance_update = False
 
     # Initialize database
     init_db()
