@@ -1,0 +1,13 @@
+# .gitignore for Streamlit application
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.streamlit/secrets.toml
+*.db
