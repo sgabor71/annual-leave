@@ -243,7 +243,7 @@ def main():
             st.session_state.show_balance_update = True
     
     # Balance Update Form
-    if st.session_state.get('show_balance_update', False):
+    if st.session_state.show_balance_update:
         with st.container():
             st.subheader("Update Leave Balance")
             new_balance = st.number_input("New Leave Balance (hours)", 
