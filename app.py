@@ -1,9 +1,8 @@
-import pymongo
-from pymongo import MongoClient
 import streamlit as st
+from pymongo import MongoClient
 from datetime import datetime, timedelta
 import hashlib
-import os
+from bson.objectid import ObjectId
 
 # MongoDB connection setup
 def get_mongo_connection():
@@ -382,7 +381,7 @@ def main():
     
     # Delete Confirmation Dialog
     if st.session_state.get('show_delete_confirmation') and st.session_state.delete_leave_id:
-        leave_to_delete = db.leaves.find_one({"_id": st.session_state.delete_leave_id})
+        leave_to_delete = db.leaves.find_one({"_id": ObjectId(st.session_state.delete_leave_id)})
         
         if leave_to_delete:
             st.warning(f"⚠️ Are you sure you want to delete the leave from {leave_to_delete['start_date']} to {leave_to_delete['end_date']}?")
@@ -393,11 +392,11 @@ def main():
                     # Refund the hours to the leave balance
                     db.settings.update_one(
                         {"user_id": str(user_id)},
-                        {"$set": {"leave_balance": user_settings['leave_balance'] + leave_to_delete['hours']}}
+                        {"$inc": {"leave_balance": leave_to_delete['hours']}}
                     )
                     
                     # Delete the leave record
-                    db.leaves.delete_one({"_id": leave_to_delete['_id']})
+                    db.leaves.delete_one({"_id": ObjectId(st.session_state.delete_leave_id)})
                     
                     # Clear session state
                     st.session_state.delete_leave_id = None
