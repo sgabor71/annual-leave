@@ -92,6 +92,13 @@ def update_user_settings(user_id, day, hours):
         {"$set": {f"{day}_hours": hours}}
     )
 
+def update_leave_balance(user_id, new_balance):
+    db = get_mongo_connection()
+    db.settings.update_one(
+        {"user_id": str(user_id)},
+        {"$set": {"leave_balance": new_balance}}
+    )
+
 def parse_date(date_str):
     return datetime.strptime(date_str, '%Y-%m-%d')
 
@@ -172,6 +179,8 @@ def main():
         st.session_state.delete_leave_id = None
     if 'show_signup' not in st.session_state:
         st.session_state.show_signup = False
+    if 'show_delete_confirmation' not in st.session_state:
+        st.session_state.show_delete_confirmation = False
 
     # Initialize database
     init_db()
@@ -223,7 +232,34 @@ def main():
     db = get_mongo_connection()
     user_settings = get_user_settings(user_id)
 
-    st.subheader(f"⏳ Remaining Leave Balance: **{user_settings['leave_balance']} hours**")
+    # Leave Balance Section with Update Option
+    st.subheader("⏳ Remaining Leave Balance")
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.markdown(f"**Current Balance: {user_settings['leave_balance']} hours**")
+    with col2:
+        if st.button("Update Balance", key="show_balance_update"):
+            st.session_state.show_balance_update = True
+    
+    # Balance Update Form
+    if st.session_state.get('show_balance_update', False):
+        with st.container():
+            st.subheader("Update Leave Balance")
+            new_balance = st.number_input("New Leave Balance (hours)", 
+                                         min_value=0.0, 
+                                         value=float(user_settings['leave_balance']),
+                                         step=0.5)
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Save", key="save_balance"):
+                    update_leave_balance(user_id, new_balance)
+                    st.success("✅ Leave balance updated successfully!")
+                    st.session_state.show_balance_update = False
+                    st.rerun()
+            with col2:
+                if st.button("Cancel", key="cancel_balance_update"):
+                    st.session_state.show_balance_update = False
+                    st.rerun()
 
     # Add Leave Section
     st.subheader("➕ Add Leave")
@@ -237,7 +273,7 @@ def main():
         custom_hours = st.checkbox("Enter custom hours (optional)")
         hours = None
         if custom_hours:
-            hours = st.number_input("Enter Hours", min_value=0)
+            hours = st.number_input("Enter Hours", min_value=0.0, step=0.5)
 
         if st.button("Add Leave"):
             start_date_str = format_date(start_date)
@@ -325,8 +361,8 @@ def main():
     if not leaves:
         st.info("No leave history found.")
     else:
-        # Sort leaves by start date (most recent first)
-        leaves.sort(key=lambda x: parse_date(x['start_date']), reverse=True)
+        # Sort leaves by start date (earliest first - ascending order)
+        leaves.sort(key=lambda x: parse_date(x['start_date']), reverse=False)
         
         for leave in leaves:
             with st.container():
@@ -339,11 +375,13 @@ def main():
                     st.write(f"**Requested on:** {leave['requested_on']}")
                 with col3:
                     if st.button("Delete", key=f"delete_{leave['_id']}"):
+                        # Store the leave ID and show confirmation dialog
                         st.session_state.delete_leave_id = str(leave['_id'])
+                        st.session_state.show_delete_confirmation = True
                 st.divider()
     
     # Delete Confirmation Dialog
-    if st.session_state.delete_leave_id:
+    if st.session_state.get('show_delete_confirmation') and st.session_state.delete_leave_id:
         leave_to_delete = db.leaves.find_one({"_id": st.session_state.delete_leave_id})
         
         if leave_to_delete:
@@ -362,7 +400,8 @@ def main():
                     db.leaves.delete_one({"_id": leave_to_delete['_id']})
                     
                     # Clear session state
-                    del st.session_state.delete_leave_id
+                    st.session_state.delete_leave_id = None
+                    st.session_state.show_delete_confirmation = False
                     
                     st.success("✅ Leave deleted and hours refunded to your balance.")
                     st.rerun()
@@ -370,7 +409,8 @@ def main():
             with col_no:
                 if st.button("Cancel", key="cancel_delete"):
                     # Clear session state
-                    del st.session_state.delete_leave_id
+                    st.session_state.delete_leave_id = None
+                    st.session_state.show_delete_confirmation = False
                     st.rerun()
 
     # Settings Section
