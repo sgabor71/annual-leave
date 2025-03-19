@@ -180,12 +180,12 @@ def main():
         st.session_state.show_signup = False
     if 'show_delete_confirmation' not in st.session_state:
         st.session_state.show_delete_confirmation = False
-    if 'show_balance_update' not in st.session_state:
-        st.session_state.show_balance_update = False
-    if 'show_balance_confirmation' not in st.session_state:
-        st.session_state.show_balance_confirmation = False
+    if 'page' not in st.session_state:
+        st.session_state.page = "main"
     if 'new_balance_value' not in st.session_state:
         st.session_state.new_balance_value = None
+    if 'pending_leave_request' not in st.session_state:
+        st.session_state.pending_leave_request = None
 
     # Initialize database
     init_db()
@@ -206,11 +206,13 @@ def main():
                     if create_user(new_username, new_password):
                         st.success("✅ Account created successfully! Please log in.")
                         st.session_state.show_signup = False
+                        st.experimental_rerun()
                 else:
                     st.error("Passwords do not match. Please try again.")
             
             if st.button("Back to Login"):
                 st.session_state.show_signup = False
+                st.experimental_rerun()
         else:
             # Login Form
             st.subheader("Login")
@@ -224,12 +226,13 @@ def main():
                 
                 if user:
                     st.session_state.user_id = str(user['_id'])
-                    st.rerun()
+                    st.experimental_rerun()
                 else:
                     st.error("Invalid username or password")
             
             if st.button("Sign Up"):
                 st.session_state.show_signup = True
+                st.experimental_rerun()
         return
 
     # Main Application
@@ -237,113 +240,182 @@ def main():
     db = get_mongo_connection()
     user_settings = get_user_settings(user_id)
 
-    # Leave Balance Section with Update Option
-    st.subheader("⏳ Remaining Leave Balance")
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.markdown(f"**Current Balance: {user_settings['leave_balance']} hours**")
-    with col2:
-        if st.button("Update Balance", key="show_balance_update"):
-            st.session_state.show_balance_update = True
-    
-    # Balance Update Form
-    if st.session_state.get('show_balance_update', False):
-        with st.container():
-            st.subheader("Update Leave Balance")
-            new_balance = st.number_input("New Leave Balance (hours)", 
-                                         min_value=0.0, 
-                                         value=float(user_settings['leave_balance']),
-                                         step=0.5)
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Continue", key="continue_balance"):
-                    st.session_state.new_balance_value = new_balance
-                    st.session_state.show_balance_confirmation = True
-                    st.session_state.show_balance_update = False
-                    st.rerun()
-            with col2:
-                if st.button("Cancel", key="cancel_balance_update"):
-                    st.session_state.show_balance_update = False
-                    st.rerun()
-    
-    # Balance Update Confirmation
-    if st.session_state.get('show_balance_confirmation', False) and st.session_state.new_balance_value is not None:
-        st.warning(f"⚠️ Are you sure you want to change your leave balance from {user_settings['leave_balance']} hours to {st.session_state.new_balance_value} hours?")
-        col_yes, col_no = st.columns(2)
-        with col_yes:
-            if st.button("Yes, Update Balance", key="confirm_balance_update"):
-                update_leave_balance(user_id, st.session_state.new_balance_value)
-                st.success("✅ Leave balance updated successfully!")
-                st.session_state.show_balance_confirmation = False
-                st.session_state.new_balance_value = None
-                st.rerun()
-        with col_no:
-            if st.button("Cancel", key="cancel_balance_confirmation"):
-                st.session_state.show_balance_confirmation = False
-                st.session_state.new_balance_value = None
-                st.rerun()
-
-    # Add Leave Section
-    st.subheader("➕ Add Leave")
-    with st.container():
+    # Navigation based on page state
+    if st.session_state.page == "update_balance":
+        st.subheader("Update Leave Balance")
+        current_balance = user_settings['leave_balance']
+        st.write(f"Current Balance: {current_balance} hours")
+        new_balance = st.number_input("New Leave Balance (hours)", 
+                                     min_value=0.0, 
+                                     value=float(current_balance),
+                                     step=0.5)
+        
         col1, col2 = st.columns(2)
         with col1:
-            start_date = st.date_input("Start Date", format="YYYY-MM-DD")
+            if st.button("Continue"):
+                st.session_state.new_balance_value = new_balance
+                st.session_state.page = "confirm_balance"
+                st.experimental_rerun()
         with col2:
-            end_date = st.date_input("End Date", min_value=start_date, format="YYYY-MM-DD")
+            if st.button("Cancel"):
+                st.session_state.page = "main"
+                st.experimental_rerun()
+    
+    elif st.session_state.page == "confirm_balance":
+        st.subheader("Confirm Balance Update")
+        st.warning(f"⚠️ Are you sure you want to change your leave balance from {user_settings['leave_balance']} hours to {st.session_state.new_balance_value} hours?")
         
-        custom_hours = st.checkbox("Enter custom hours (optional)")
-        hours = None
-        if custom_hours:
-            hours = st.number_input("Enter Hours", min_value=0.0, step=0.5)
-
-        if st.button("Add Leave"):
-            start_date_str = format_date(start_date)
-            end_date_str = format_date(end_date)
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Yes, Update Balance"):
+                update_leave_balance(user_id, st.session_state.new_balance_value)
+                st.success("✅ Leave balance updated successfully!")
+                st.session_state.page = "main"
+                st.session_state.new_balance_value = None
+                st.experimental_rerun()
+        with col2:
+            if st.button("Cancel"):
+                st.session_state.page = "main"
+                st.session_state.new_balance_value = None
+                st.experimental_rerun()
+    
+    elif st.session_state.page == "main":
+        # Leave Balance Section with Update Option
+        st.subheader("⏳ Remaining Leave Balance")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown(f"**Current Balance: {user_settings['leave_balance']} hours**")
+        with col2:
+            if st.button("Update Balance"):
+                st.session_state.page = "update_balance"
+                st.experimental_rerun()
+        
+        # Add Leave Section
+        st.subheader("➕ Add Leave")
+        with st.container():
+            col1, col2 = st.columns(2)
+            with col1:
+                start_date = st.date_input("Start Date", format="YYYY-MM-DD")
+            with col2:
+                end_date = st.date_input("End Date", min_value=start_date, format="YYYY-MM-DD")
             
-            if not hours:
-                hours = calculate_leave_hours(start_date_str, end_date_str, user_id)
-            
-            if float(hours) > user_settings['leave_balance']:
-                st.warning("⚠️ Warning: The requested hours exceed your remaining leave balance. Please adjust your request.")
-            elif check_overlap(user_id, start_date_str, end_date_str):
-                st.warning("⚠️ Overlap detected with existing leave requests.")
-                
-                # Store the leave request details in session state
-                st.session_state.pending_leave_request = {
-                    "start_date": start_date_str,
-                    "end_date": end_date_str,
-                    "hours": hours
-                }
-                st.session_state.show_overlap_confirmation = True
-            else:
-                # No overlap, proceed with adding the leave request
-                requested_on = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                db.leaves.insert_one({
-                    "user_id": str(user_id),
-                    "start_date": start_date_str,
-                    "end_date": end_date_str,
-                    "hours": hours,
-                    "requested_on": requested_on
-                })
-                
-                # Update leave balance
-                db.settings.update_one(
-                    {"user_id": str(user_id)},
-                    {"$set": {"leave_balance": user_settings['leave_balance'] - hours}}
-                )
-                
-                st.success("✅ Leave added successfully!")
-                st.rerun()
+            custom_hours = st.checkbox("Enter custom hours (optional)")
+            hours = None
+            if custom_hours:
+                hours = st.number_input("Enter Hours", min_value=0.0, step=0.5)
 
-    # Overlap Confirmation Dialog
-    if st.session_state.get('show_overlap_confirmation'):
+            if st.button("Add Leave"):
+                start_date_str = format_date(start_date)
+                end_date_str = format_date(end_date)
+                
+                if not hours:
+                    hours = calculate_leave_hours(start_date_str, end_date_str, user_id)
+                
+                if float(hours) > user_settings['leave_balance']:
+                    st.warning("⚠️ Warning: The requested hours exceed your remaining leave balance. Please adjust your request.")
+                elif check_overlap(user_id, start_date_str, end_date_str):
+                    st.warning("⚠️ Overlap detected with existing leave requests.")
+                    
+                    # Store the leave request details in session state
+                    st.session_state.pending_leave_request = {
+                        "start_date": start_date_str,
+                        "end_date": end_date_str,
+                        "hours": hours
+                    }
+                    st.session_state.page = "confirm_overlap"
+                    st.experimental_rerun()
+                else:
+                    # No overlap, proceed with adding the leave request
+                    requested_on = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    db.leaves.insert_one({
+                        "user_id": str(user_id),
+                        "start_date": start_date_str,
+                        "end_date": end_date_str,
+                        "hours": hours,
+                        "requested_on": requested_on
+                    })
+                    
+                    # Update leave balance
+                    db.settings.update_one(
+                        {"user_id": str(user_id)},
+                        {"$set": {"leave_balance": user_settings['leave_balance'] - hours}}
+                    )
+                    
+                    st.success("✅ Leave added successfully!")
+                    st.experimental_rerun()
+
+        # View Leave History Section
+        st.subheader("📋 Leave History")
+        leaves = list(db.leaves.find({"user_id": str(user_id)}))
+        
+        if not leaves:
+            st.info("No leave history found.")
+        else:
+            # Sort leaves by start date (earliest first - ascending order)
+            leaves.sort(key=lambda x: parse_date(x['start_date']), reverse=False)
+            
+            for leave in leaves:
+                with st.container():
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    with col1:
+                        st.write(f"**From:** {leave['start_date']}")
+                        st.write(f"**To:** {leave['end_date']}")
+                    with col2:
+                        st.write(f"**Hours:** {leave['hours']}")
+                        st.write(f"**Requested on:** {leave['requested_on']}")
+                    with col3:
+                        if st.button("Delete", key=f"delete_{leave['_id']}"):
+                            # Store the leave ID and show confirmation dialog
+                            st.session_state.delete_leave_id = str(leave['_id'])
+                            st.session_state.page = "confirm_delete"
+                            st.experimental_rerun()
+                    st.divider()
+        
+        # Settings Section
+        st.subheader("⚙️ Settings")
+        with st.expander("Working Hours Settings"):
+            st.write("Set your working hours for each day of the week:")
+            
+            days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+            day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+            
+            for day, day_name in zip(days, day_names):
+                col1, col2 = st.columns([1, 3])
+                with col1:
+                    st.write(f"{day_name}:")
+                with col2:
+                    new_hours = st.number_input(f"Hours for {day_name}", min_value=0.0, max_value=24.0, value=float(user_settings[f'{day}_hours']), step=0.5, key=f"hours_{day}")
+                    if new_hours != user_settings[f'{day}_hours']:
+                        update_user_settings(user_id, day, new_hours)
+                        st.success(f"✅ {day_name} hours updated.")
+                        st.experimental_rerun()
+
+        # Delete All Leave History
+        with st.expander("Danger Zone"):
+            st.warning("⚠️ Deleting all leave history cannot be undone.")
+            if st.button("Delete All Leave History", key="delete_all"):
+                st.session_state.page = "confirm_delete_all"
+                st.experimental_rerun()
+        
+        # Logout
+        if st.button("🚪 Logout"):
+            st.session_state.user_id = None
+            st.success("✅ Logged out successfully!")
+            st.experimental_rerun()
+    
+    elif st.session_state.page == "confirm_overlap":
+        st.subheader("Confirm Overlapping Leave")
         st.warning("⚠️ Are you sure you want to proceed with the overlapping leave request?")
-        col_yes, col_no = st.columns(2)
-        with col_yes:
-            if st.button("Proceed", key="proceed_overlap"):
+        
+        pending_request = st.session_state.pending_leave_request
+        st.write(f"**From:** {pending_request['start_date']}")
+        st.write(f"**To:** {pending_request['end_date']}")
+        st.write(f"**Hours:** {pending_request['hours']}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Proceed"):
                 # Retrieve the pending leave request from session state
-                pending_request = st.session_state.pending_leave_request
                 requested_on = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 
                 # Add the leave request to the database
@@ -362,56 +434,29 @@ def main():
                 )
                 
                 # Clear session state
-                del st.session_state.pending_leave_request
-                del st.session_state.show_overlap_confirmation
+                st.session_state.pending_leave_request = None
+                st.session_state.page = "main"
                 
                 st.success("✅ Leave added successfully!")
-                st.rerun()
+                st.experimental_rerun()
         
-        with col_no:
-            if st.button("Cancel", key="cancel_overlap"):
+        with col2:
+            if st.button("Cancel"):
                 # Clear session state
-                del st.session_state.pending_leave_request
-                del st.session_state.show_overlap_confirmation
-                st.info("❌ Leave request canceled.")
-                st.rerun()
-
-    # View Leave History Section
-    st.subheader("📋 Leave History")
-    leaves = list(db.leaves.find({"user_id": str(user_id)}))
+                st.session_state.pending_leave_request = None
+                st.session_state.page = "main"
+                st.experimental_rerun()
     
-    if not leaves:
-        st.info("No leave history found.")
-    else:
-        # Sort leaves by start date (earliest first - ascending order)
-        leaves.sort(key=lambda x: parse_date(x['start_date']), reverse=False)
-        
-        for leave in leaves:
-            with st.container():
-                col1, col2, col3 = st.columns([2, 2, 1])
-                with col1:
-                    st.write(f"**From:** {leave['start_date']}")
-                    st.write(f"**To:** {leave['end_date']}")
-                with col2:
-                    st.write(f"**Hours:** {leave['hours']}")
-                    st.write(f"**Requested on:** {leave['requested_on']}")
-                with col3:
-                    if st.button("Delete", key=f"delete_{leave['_id']}"):
-                        # Store the leave ID and show confirmation dialog
-                        st.session_state.delete_leave_id = str(leave['_id'])
-                        st.session_state.show_delete_confirmation = True
-                st.divider()
-    
-    # Delete Confirmation Dialog
-    if st.session_state.get('show_delete_confirmation') and st.session_state.delete_leave_id:
+    elif st.session_state.page == "confirm_delete":
+        st.subheader("Confirm Delete Leave")
         leave_to_delete = db.leaves.find_one({"_id": ObjectId(st.session_state.delete_leave_id)})
         
         if leave_to_delete:
             st.warning(f"⚠️ Are you sure you want to delete the leave from {leave_to_delete['start_date']} to {leave_to_delete['end_date']}?")
-            col_yes, col_no = st.columns(2)
             
-            with col_yes:
-                if st.button("Yes, Delete", key="confirm_delete"):
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Yes, Delete"):
                     # Refund the hours to the leave balance
                     db.settings.update_one(
                         {"user_id": str(user_id)},
@@ -423,50 +468,27 @@ def main():
                     
                     # Clear session state
                     st.session_state.delete_leave_id = None
-                    st.session_state.show_delete_confirmation = False
+                    st.session_state.page = "main"
                     
                     st.success("✅ Leave deleted and hours refunded to your balance.")
-                    st.rerun()
+                    st.experimental_rerun()
             
-            with col_no:
-                if st.button("Cancel", key="cancel_delete"):
+            with col2:
+                if st.button("Cancel"):
                     # Clear session state
                     st.session_state.delete_leave_id = None
-                    st.session_state.show_delete_confirmation = False
-                    st.rerun()
-
-    # Settings Section
-    st.subheader("⚙️ Settings")
-    with st.expander("Working Hours Settings"):
-        st.write("Set your working hours for each day of the week:")
-        
-        days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        
-        for day, day_name in zip(days, day_names):
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                st.write(f"{day_name}:")
-            with col2:
-                new_hours = st.number_input(f"Hours for {day_name}", min_value=0.0, max_value=24.0, value=float(user_settings[f'{day}_hours']), step=0.5, key=f"hours_{day}")
-                if new_hours != user_settings[f'{day}_hours']:
-                    update_user_settings(user_id, day, new_hours)
-                    st.success(f"✅ {day_name} hours updated.")
-                    st.rerun()
-
-    # Delete All Leave History
-    with st.expander("Danger Zone"):
-        st.warning("⚠️ Deleting all leave history cannot be undone.")
-        if st.button("Delete All Leave History", key="delete_all"):
-            st.session_state.show_delete_all_confirmation = True
+                    st.session_state.page = "main"
+                    st.experimental_rerun()
     
-    # Delete All Confirmation Dialog
-    if st.session_state.get('show_delete_all_confirmation'):
+    elif st.session_state.page == "confirm_delete_all":
+        st.subheader("Confirm Delete All Leave History")
         st.warning("⚠️ Are you sure you want to delete ALL leave history? This cannot be undone.")
-        col_yes, col_no = st.columns(2)
         
-        with col_yes:
-            if st.button("Yes, Delete All", key="confirm_delete_all"):
+        leaves = list(db.leaves.find({"user_id": str(user_id)}))
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Yes, Delete All"):
                 # Get total hours from all leaves
                 total_hours = sum(leave['hours'] for leave in leaves)
                 
@@ -480,22 +502,16 @@ def main():
                 db.leaves.delete_many({"user_id": str(user_id)})
                 
                 # Clear session state
-                del st.session_state.show_delete_all_confirmation
+                st.session_state.page = "main"
                 
                 st.success("✅ All leave history deleted and hours refunded to your balance.")
-                st.rerun()
+                st.experimental_rerun()
         
-        with col_no:
-            if st.button("Cancel", key="cancel_delete_all"):
+        with col2:
+            if st.button("Cancel"):
                 # Clear session state
-                del st.session_state.show_delete_all_confirmation
-                st.info("❌ Delete all leave history canceled.")
-                st.rerun()
-    
-    # Logout
-    if st.button("🚪 Logout"):
-        del st.session_state.user_id
-        st.success("✅ Logged out successfully!")
+                st.session_state.page = "main"
+                st.experimental_rerun()
 
 if __name__ == '__main__':
     main()
