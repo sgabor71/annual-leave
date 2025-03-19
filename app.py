@@ -180,6 +180,12 @@ def main():
         st.session_state.show_signup = False
     if 'show_delete_confirmation' not in st.session_state:
         st.session_state.show_delete_confirmation = False
+    if 'show_balance_update' not in st.session_state:
+        st.session_state.show_balance_update = False
+    if 'show_balance_confirmation' not in st.session_state:
+        st.session_state.show_balance_confirmation = False
+    if 'new_balance_value' not in st.session_state:
+        st.session_state.new_balance_value = None
 
     # Initialize database
     init_db()
@@ -250,15 +256,32 @@ def main():
                                          step=0.5)
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("Save", key="save_balance"):
-                    update_leave_balance(user_id, new_balance)
-                    st.success("✅ Leave balance updated successfully!")
+                if st.button("Continue", key="continue_balance"):
+                    st.session_state.new_balance_value = new_balance
+                    st.session_state.show_balance_confirmation = True
                     st.session_state.show_balance_update = False
                     st.rerun()
             with col2:
                 if st.button("Cancel", key="cancel_balance_update"):
                     st.session_state.show_balance_update = False
                     st.rerun()
+    
+    # Balance Update Confirmation
+    if st.session_state.get('show_balance_confirmation', False) and st.session_state.new_balance_value is not None:
+        st.warning(f"⚠️ Are you sure you want to change your leave balance from {user_settings['leave_balance']} hours to {st.session_state.new_balance_value} hours?")
+        col_yes, col_no = st.columns(2)
+        with col_yes:
+            if st.button("Yes, Update Balance", key="confirm_balance_update"):
+                update_leave_balance(user_id, st.session_state.new_balance_value)
+                st.success("✅ Leave balance updated successfully!")
+                st.session_state.show_balance_confirmation = False
+                st.session_state.new_balance_value = None
+                st.rerun()
+        with col_no:
+            if st.button("Cancel", key="cancel_balance_confirmation"):
+                st.session_state.show_balance_confirmation = False
+                st.session_state.new_balance_value = None
+                st.rerun()
 
     # Add Leave Section
     st.subheader("➕ Add Leave")
