@@ -180,8 +180,6 @@ def main():
         st.session_state.show_signup = False
     if 'show_delete_confirmation' not in st.session_state:
         st.session_state.show_delete_confirmation = False
-    if 'show_balance_update' not in st.session_state:
-        st.session_state.show_balance_update = False
 
     # Initialize database
     init_db()
@@ -243,7 +241,7 @@ def main():
             st.session_state.show_balance_update = True
     
     # Balance Update Form
-    if st.session_state.show_balance_update:
+    if st.session_state.get('show_balance_update', False):
         with st.container():
             st.subheader("Update Leave Balance")
             new_balance = st.number_input("New Leave Balance (hours)", 
