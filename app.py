@@ -55,7 +55,7 @@ def create_user(username, password):
             "fri_hours": 8.5,
             "sat_hours": 0,
             "sun_hours": 0,
-            "leave_balance": 193.5
+            "leave_balance": 307.5
         })
         
         return True
