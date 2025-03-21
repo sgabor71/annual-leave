@@ -1,7 +1,7 @@
 import streamlit as st
 from pymongo import MongoClient
 from datetime import datetime, timedelta
-import hashlib
+import bcrypt  # Import bcrypt for password hashing
 from bson.objectid import ObjectId
 
 # MongoDB connection setup
@@ -30,7 +30,8 @@ def init_db():
 
 # Helper functions for MongoDB operations
 def create_user(username, password):
-    hashed_password = hashlib.sha256(password.encode('utf-8')).hexdigest()
+    # Hash the password using bcrypt
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
     db = get_mongo_connection()
     
     # Check if username already exists
@@ -42,7 +43,7 @@ def create_user(username, password):
         # Insert new user
         user_id = db.users.insert_one({
             "username": username,
-            "password": hashed_password
+            "password": hashed_password  # Store the hashed password
         }).inserted_id
         
         # Create default settings for the user
@@ -62,6 +63,10 @@ def create_user(username, password):
     except Exception as e:
         st.error(f"Error creating user: {e}")
         return False
+
+def verify_password(password, hashed_password):
+    # Verify the password against the hashed password
+    return bcrypt.checkpw(password.encode('utf-8'), hashed_password)
 
 def get_user_settings(user_id):
     db = get_mongo_connection()
@@ -220,11 +225,10 @@ def main():
             password = st.text_input("Password", type="password")
             
             if st.button("Login"):
-                hashed_password = hashlib.sha256(password.encode('utf-8')).hexdigest()
                 db = get_mongo_connection()
-                user = db.users.find_one({"username": username, "password": hashed_password})
+                user = db.users.find_one({"username": username})
                 
-                if user:
+                if user and verify_password(password, user['password']):
                     st.session_state.user_id = str(user['_id'])
                     st.rerun()
                 else:
