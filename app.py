@@ -175,6 +175,8 @@ def main():
         st.session_state.show_delete_confirmation = False
     if 'show_delete_account_confirmation' not in st.session_state:
         st.session_state.show_delete_account_confirmation = False
+    if 'show_delete_all_confirmation' not in st.session_state:
+        st.session_state.show_delete_all_confirmation = False
 
     # Initialize database
     init_db()
@@ -401,15 +403,53 @@ def main():
                     st.success(f"✅ {day_name} hours updated.")
                     st.rerun()
 
-    # Delete Account Section
+    # Danger Zone Section
     with st.expander("Danger Zone"):
-        st.warning("⚠️ Deleting your account will permanently erase all your data, including leave history and settings.")
+        st.warning("⚠️ These actions are irreversible. Proceed with caution.")
+        
+        # Delete All Leave History
+        if st.button("Delete All Leave History", key="delete_all"):
+            st.session_state.show_delete_all_confirmation = True
+        
+        # Delete Account
         if st.button("Delete Account", key="delete_account"):
             st.session_state.show_delete_account_confirmation = True
     
+    # Delete All Leave History Confirmation Dialog
+    if st.session_state.get('show_delete_all_confirmation'):
+        st.warning("⚠️ Are you sure you want to delete ALL leave history? This cannot be undone.")
+        col_yes, col_no = st.columns(2)
+        
+        with col_yes:
+            if st.button("Yes, Delete All", key="confirm_delete_all"):
+                # Get total hours from all leaves
+                total_hours = sum(leave['hours'] for leave in leaves)
+                
+                # Refund all hours to the leave balance
+                db.settings.update_one(
+                    {"user_id": str(user_id)},
+                    {"$set": {"leave_balance": user_settings['leave_balance'] + total_hours}}
+                )
+                
+                # Delete all leave records for this user
+                db.leaves.delete_many({"user_id": str(user_id)})
+                
+                # Clear session state
+                del st.session_state.show_delete_all_confirmation
+                
+                st.success("✅ All leave history deleted and hours refunded to your balance.")
+                st.rerun()
+        
+        with col_no:
+            if st.button("Cancel", key="cancel_delete_all"):
+                # Clear session state
+                del st.session_state.show_delete_all_confirmation
+                st.info("❌ Delete all leave history canceled.")
+                st.rerun()
+    
     # Delete Account Confirmation Dialog
     if st.session_state.get('show_delete_account_confirmation'):
-        st.warning("⚠️ Are you sure you want to delete your account? This action cannot be undone.")
+        st.warning("⚠️ Are you sure you want to delete your account? This will erase all your data, including leave history and settings.")
         col_yes, col_no = st.columns(2)
         
         with col_yes:
