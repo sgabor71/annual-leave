@@ -91,13 +91,6 @@ def update_user_settings(user_id, day, hours):
         {"$set": {f"{day}_hours": hours}}
     )
 
-def update_leave_balance(user_id, new_balance):
-    db = get_mongo_connection()
-    db.settings.update_one(
-        {"user_id": str(user_id)},
-        {"$set": {"leave_balance": new_balance}}
-    )
-
 def parse_date(date_str):
     return datetime.strptime(date_str, '%Y-%m-%d')
 
@@ -272,7 +265,10 @@ def main():
         col_yes, col_no = st.columns(2)
         with col_yes:
             if st.button("Yes, Update Balance", key="confirm_balance_update"):
-                update_leave_balance(user_id, st.session_state.new_balance_value)
+                db.settings.update_one(
+                    {"user_id": str(user_id)},
+                    {"$set": {"leave_balance": st.session_state.new_balance_value}}
+                )
                 st.success("✅ Leave balance updated successfully!")
                 st.session_state.show_balance_confirmation = False
                 st.session_state.new_balance_value = None
