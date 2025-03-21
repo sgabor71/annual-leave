@@ -1,7 +1,7 @@
 import streamlit as st
 from pymongo import MongoClient
 from datetime import datetime, timedelta
-import bcrypt  # Import bcrypt for password hashing
+import hashlib
 from bson.objectid import ObjectId
 
 # MongoDB connection setup
@@ -30,8 +30,7 @@ def init_db():
 
 # Helper functions for MongoDB operations
 def create_user(username, password):
-    # Hash the password using bcrypt
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    hashed_password = hashlib.sha256(password.encode('utf-8')).hexdigest()
     db = get_mongo_connection()
     
     # Check if username already exists
@@ -43,7 +42,7 @@ def create_user(username, password):
         # Insert new user
         user_id = db.users.insert_one({
             "username": username,
-            "password": hashed_password  # Store the hashed password
+            "password": hashed_password
         }).inserted_id
         
         # Create default settings for the user
@@ -63,13 +62,6 @@ def create_user(username, password):
     except Exception as e:
         st.error(f"Error creating user: {e}")
         return False
-
-def verify_password(password, hashed_password):
-    # Convert the hashed password to bytes if it's a string
-    if isinstance(hashed_password, str):
-        hashed_password = hashed_password.encode('utf-8')
-    # Verify the password against the hashed password
-    return bcrypt.checkpw(password.encode('utf-8'), hashed_password)
 
 def get_user_settings(user_id):
     db = get_mongo_connection()
@@ -228,10 +220,11 @@ def main():
             password = st.text_input("Password", type="password")
             
             if st.button("Login"):
+                hashed_password = hashlib.sha256(password.encode('utf-8')).hexdigest()
                 db = get_mongo_connection()
-                user = db.users.find_one({"username": username})
+                user = db.users.find_one({"username": username, "password": hashed_password})
                 
-                if user and verify_password(password, user['password']):
+                if user:
                     st.session_state.user_id = str(user['_id'])
                     st.rerun()
                 else:
@@ -239,9 +232,7 @@ def main():
             
             if st.button("Sign Up"):
                 st.session_state.show_signup = True
-        
-        # Use st.stop() instead of return
-        st.stop()
+        return
 
     # Main Application
     user_id = st.session_state.user_id
