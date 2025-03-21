@@ -186,6 +186,10 @@ def main():
         st.session_state.show_balance_confirmation = False
     if 'new_balance_value' not in st.session_state:
         st.session_state.new_balance_value = None
+    if 'pending_leave_request' not in st.session_state:
+        st.session_state.pending_leave_request = None
+    if 'show_overlap_confirmation' not in st.session_state:
+        st.session_state.show_overlap_confirmation = False
 
     # Initialize database
     init_db()
