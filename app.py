@@ -55,7 +55,7 @@ def create_user(username, password):
             "fri_hours": 8.5,
             "sat_hours": 0,
             "sun_hours": 0,
-            "leave_balance": 307.5
+            "leave_balance": 307.5  # Updated default leave balance
         })
         
         return True
@@ -78,7 +78,7 @@ def get_user_settings(user_id):
             "fri_hours": 8.5,
             "sat_hours": 0,
             "sun_hours": 0,
-            "leave_balance": 307.5
+            "leave_balance": 307.5  # Updated default leave balance
         }
         db.settings.insert_one(settings)
     
