@@ -173,12 +173,8 @@ def main():
         st.session_state.show_signup = False
     if 'show_delete_confirmation' not in st.session_state:
         st.session_state.show_delete_confirmation = False
-    if 'show_balance_update' not in st.session_state:
-        st.session_state.show_balance_update = False
-    if 'show_balance_confirmation' not in st.session_state:
-        st.session_state.show_balance_confirmation = False
-    if 'new_balance_value' not in st.session_state:
-        st.session_state.new_balance_value = None
+    if 'show_delete_account_confirmation' not in st.session_state:
+        st.session_state.show_delete_account_confirmation = False
 
     # Initialize database
     init_db()
@@ -230,54 +226,9 @@ def main():
     db = get_mongo_connection()
     user_settings = get_user_settings(user_id)
 
-    # Leave Balance Section with Update Option
+    # Leave Balance Section
     st.subheader("⏳ Remaining Leave Balance")
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.markdown(f"**Current Balance: {user_settings['leave_balance']} hours**")
-    with col2:
-        if st.button("Update Balance", key="show_balance_update"):
-            st.session_state.show_balance_update = True
-    
-    # Balance Update Form
-    if st.session_state.get('show_balance_update', False):
-        with st.container():
-            st.subheader("Update Leave Balance")
-            new_balance = st.number_input("New Leave Balance (hours)", 
-                                         min_value=0.0, 
-                                         value=float(user_settings['leave_balance']),
-                                         step=0.5)
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Continue", key="continue_balance"):
-                    st.session_state.new_balance_value = new_balance
-                    st.session_state.show_balance_confirmation = True
-                    st.session_state.show_balance_update = False
-                    st.rerun()
-            with col2:
-                if st.button("Cancel", key="cancel_balance_update"):
-                    st.session_state.show_balance_update = False
-                    st.rerun()
-    
-    # Balance Update Confirmation
-    if st.session_state.get('show_balance_confirmation', False) and st.session_state.new_balance_value is not None:
-        st.warning(f"⚠️ Are you sure you want to change your leave balance from {user_settings['leave_balance']} hours to {st.session_state.new_balance_value} hours?")
-        col_yes, col_no = st.columns(2)
-        with col_yes:
-            if st.button("Yes, Update Balance", key="confirm_balance_update"):
-                db.settings.update_one(
-                    {"user_id": str(user_id)},
-                    {"$set": {"leave_balance": st.session_state.new_balance_value}}
-                )
-                st.success("✅ Leave balance updated successfully!")
-                st.session_state.show_balance_confirmation = False
-                st.session_state.new_balance_value = None
-                st.rerun()
-        with col_no:
-            if st.button("Cancel", key="cancel_balance_confirmation"):
-                st.session_state.show_balance_confirmation = False
-                st.session_state.new_balance_value = None
-                st.rerun()
+    st.markdown(f"**Current Balance: {user_settings['leave_balance']} hours**")
 
     # Add Leave Section
     st.subheader("➕ Add Leave")
@@ -450,42 +401,36 @@ def main():
                     st.success(f"✅ {day_name} hours updated.")
                     st.rerun()
 
-    # Delete All Leave History
+    # Delete Account Section
     with st.expander("Danger Zone"):
-        st.warning("⚠️ Deleting all leave history cannot be undone.")
-        if st.button("Delete All Leave History", key="delete_all"):
-            st.session_state.show_delete_all_confirmation = True
+        st.warning("⚠️ Deleting your account will permanently erase all your data, including leave history and settings.")
+        if st.button("Delete Account", key="delete_account"):
+            st.session_state.show_delete_account_confirmation = True
     
-    # Delete All Confirmation Dialog
-    if st.session_state.get('show_delete_all_confirmation'):
-        st.warning("⚠️ Are you sure you want to delete ALL leave history? This cannot be undone.")
+    # Delete Account Confirmation Dialog
+    if st.session_state.get('show_delete_account_confirmation'):
+        st.warning("⚠️ Are you sure you want to delete your account? This action cannot be undone.")
         col_yes, col_no = st.columns(2)
         
         with col_yes:
-            if st.button("Yes, Delete All", key="confirm_delete_all"):
-                # Get total hours from all leaves
-                total_hours = sum(leave['hours'] for leave in leaves)
-                
-                # Refund all hours to the leave balance
-                db.settings.update_one(
-                    {"user_id": str(user_id)},
-                    {"$set": {"leave_balance": user_settings['leave_balance'] + total_hours}}
-                )
-                
-                # Delete all leave records for this user
+            if st.button("Yes, Delete My Account", key="confirm_delete_account"):
+                # Delete user, settings, and leave records
+                db.users.delete_one({"_id": ObjectId(user_id)})
+                db.settings.delete_many({"user_id": str(user_id)})
                 db.leaves.delete_many({"user_id": str(user_id)})
                 
                 # Clear session state
-                del st.session_state.show_delete_all_confirmation
+                del st.session_state.user_id
+                st.session_state.show_delete_account_confirmation = False
                 
-                st.success("✅ All leave history deleted and hours refunded to your balance.")
+                st.success("✅ Account deleted successfully!")
                 st.rerun()
         
         with col_no:
-            if st.button("Cancel", key="cancel_delete_all"):
+            if st.button("Cancel", key="cancel_delete_account"):
                 # Clear session state
-                del st.session_state.show_delete_all_confirmation
-                st.info("❌ Delete all leave history canceled.")
+                st.session_state.show_delete_account_confirmation = False
+                st.info("❌ Account deletion canceled.")
                 st.rerun()
     
     # Logout
