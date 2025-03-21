@@ -55,7 +55,7 @@ def create_user(username, password):
             "fri_hours": 8.5,
             "sat_hours": 0,
             "sun_hours": 0,
-            "leave_balance": 307.5  # Updated default leave balance
+            "leave_balance": 193.5
         })
         
         return True
@@ -78,7 +78,7 @@ def get_user_settings(user_id):
             "fri_hours": 8.5,
             "sat_hours": 0,
             "sun_hours": 0,
-            "leave_balance": 307.5  # Updated default leave balance
+            "leave_balance": 193.5
         }
         db.settings.insert_one(settings)
     
@@ -186,10 +186,6 @@ def main():
         st.session_state.show_balance_confirmation = False
     if 'new_balance_value' not in st.session_state:
         st.session_state.new_balance_value = None
-    if 'pending_leave_request' not in st.session_state:
-        st.session_state.pending_leave_request = None
-    if 'show_overlap_confirmation' not in st.session_state:
-        st.session_state.show_overlap_confirmation = False
 
     # Initialize database
     init_db()
@@ -251,7 +247,7 @@ def main():
             st.session_state.show_balance_update = True
     
     # Balance Update Form
-    if st.session_state.show_balance_update:
+    if st.session_state.get('show_balance_update', False):
         with st.container():
             st.subheader("Update Leave Balance")
             new_balance = st.number_input("New Leave Balance (hours)", 
@@ -271,7 +267,7 @@ def main():
                     st.rerun()
     
     # Balance Update Confirmation
-    if st.session_state.show_balance_confirmation and st.session_state.new_balance_value is not None:
+    if st.session_state.get('show_balance_confirmation', False) and st.session_state.new_balance_value is not None:
         st.warning(f"⚠️ Are you sure you want to change your leave balance from {user_settings['leave_balance']} hours to {st.session_state.new_balance_value} hours?")
         col_yes, col_no = st.columns(2)
         with col_yes:
@@ -341,7 +337,7 @@ def main():
                 st.rerun()
 
     # Overlap Confirmation Dialog
-    if st.session_state.show_overlap_confirmation:
+    if st.session_state.get('show_overlap_confirmation'):
         st.warning("⚠️ Are you sure you want to proceed with the overlapping leave request?")
         col_yes, col_no = st.columns(2)
         with col_yes:
@@ -407,7 +403,7 @@ def main():
                 st.divider()
     
     # Delete Confirmation Dialog
-    if st.session_state.show_delete_confirmation and st.session_state.delete_leave_id:
+    if st.session_state.get('show_delete_confirmation') and st.session_state.delete_leave_id:
         leave_to_delete = db.leaves.find_one({"_id": ObjectId(st.session_state.delete_leave_id)})
         
         if leave_to_delete:
@@ -465,7 +461,7 @@ def main():
             st.session_state.show_delete_all_confirmation = True
     
     # Delete All Confirmation Dialog
-    if st.session_state.show_delete_all_confirmation:
+    if st.session_state.get('show_delete_all_confirmation'):
         st.warning("⚠️ Are you sure you want to delete ALL leave history? This cannot be undone.")
         col_yes, col_no = st.columns(2)
         
