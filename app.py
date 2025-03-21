@@ -91,6 +91,13 @@ def update_user_settings(user_id, day, hours):
         {"$set": {f"{day}_hours": hours}}
     )
 
+def update_leave_balance(user_id, new_balance):
+    db = get_mongo_connection()
+    db.settings.update_one(
+        {"user_id": str(user_id)},
+        {"$set": {"leave_balance": new_balance}}
+    )
+
 def parse_date(date_str):
     return datetime.strptime(date_str, '%Y-%m-%d')
 
@@ -177,6 +184,10 @@ def main():
         st.session_state.show_delete_account_confirmation = False
     if 'show_delete_all_confirmation' not in st.session_state:
         st.session_state.show_delete_all_confirmation = False
+    if 'show_update_balance_confirmation' not in st.session_state:
+        st.session_state.show_update_balance_confirmation = False
+    if 'new_balance' not in st.session_state:
+        st.session_state.new_balance = None
 
     # Initialize database
     init_db()
@@ -386,6 +397,58 @@ def main():
 
     # Settings Section
     st.subheader("⚙️ Settings")
+    
+    # Update Leave Balance Option
+    with st.expander("Update Leave Balance"):
+        st.write(f"Current leave balance: **{user_settings['leave_balance']} hours**")
+        new_balance = st.number_input("New Leave Balance (hours)", 
+                                     min_value=0.0, 
+                                     value=float(user_settings['leave_balance']), 
+                                     step=0.5)
+        
+        if st.button("Update Balance"):
+            if new_balance != user_settings['leave_balance']:
+                # Store new balance in session state and trigger confirmation
+                st.session_state.new_balance = new_balance
+                st.session_state.show_update_balance_confirmation = True
+            else:
+                st.info("No change in balance detected.")
+    
+    # Update Balance Confirmation Dialog
+    if st.session_state.get('show_update_balance_confirmation') and st.session_state.new_balance is not None:
+        current_balance = user_settings['leave_balance']
+        new_balance = st.session_state.new_balance
+        difference = new_balance - current_balance
+        
+        if difference > 0:
+            message = f"⚠️ This will **increase** your leave balance by **{difference} hours**."
+        else:
+            message = f"⚠️ This will **decrease** your leave balance by **{abs(difference)} hours**."
+            
+        st.warning(f"Are you sure you want to update your leave balance from {current_balance} to {new_balance} hours? {message}")
+        
+        col_yes, col_no = st.columns(2)
+        with col_yes:
+            if st.button("Yes, Update Balance", key="confirm_update_balance"):
+                # Update the leave balance
+                update_leave_balance(user_id, new_balance)
+                
+                # Clear session state
+                st.session_state.new_balance = None
+                st.session_state.show_update_balance_confirmation = False
+                
+                st.success("✅ Leave balance updated successfully!")
+                st.rerun()
+        
+        with col_no:
+            if st.button("Cancel", key="cancel_update_balance"):
+                # Clear session state
+                st.session_state.new_balance = None
+                st.session_state.show_update_balance_confirmation = False
+                st.info("❌ Balance update canceled.")
+                st.rerun()
+    
+    # Working Hours Settings
     with st.expander("Working Hours Settings"):
         st.write("Set your working hours for each day of the week:")
         
